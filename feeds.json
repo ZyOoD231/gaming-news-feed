@@ -1,0 +1,49 @@
+{
+  "settings": {
+    "max_items": 150,
+    "max_age_days": 10,
+    "per_feed_cap": 14,
+    "per_source_cap": 22,
+    "min_items_to_publish": 15
+  },
+  "feeds": {
+    "en": [
+      { "name": "IGN",                "url": "https://feeds.ign.com/ign/all" },
+      { "name": "GameSpot",           "url": "https://www.gamespot.com/feeds/mashup/" },
+      { "name": "Eurogamer",          "url": "https://www.eurogamer.net/feed" },
+      { "name": "Polygon",            "url": "https://www.polygon.com/rss/index.xml" },
+      { "name": "Kotaku",             "url": "https://kotaku.com/rss" },
+      { "name": "VGC",                "url": "https://www.videogameschronicle.com/feed/" },
+      { "name": "GamesRadar",         "url": "https://www.gamesradar.com/rss/" },
+      { "name": "Game Informer",      "url": "https://www.gameinformer.com/rss.xml" },
+      { "name": "PC Gamer",           "url": "https://www.pcgamer.com/rss/",                "category": "pc" },
+      { "name": "Rock Paper Shotgun", "url": "https://www.rockpapershotgun.com/feed/",      "category": "pc" },
+      { "name": "Push Square",        "url": "https://www.pushsquare.com/feeds/latest",     "category": "playstation" },
+      { "name": "PlayStation Blog",   "url": "https://feeds.feedburner.com/PSBlog",         "category": "playstation" },
+      { "name": "Pure Xbox",          "url": "https://www.purexbox.com/feeds/latest",       "category": "xbox" },
+      { "name": "Xbox Wire",          "url": "https://news.xbox.com/en-us/feed/",           "category": "xbox" },
+      { "name": "Nintendo Life",      "url": "https://www.nintendolife.com/feeds/latest",   "category": "nintendo" },
+      { "name": "Pocket Gamer",       "url": "https://www.pocketgamer.com/rss/",            "category": "mobile" },
+      { "name": "TouchArcade",        "url": "https://toucharcade.com/feed/",               "category": "mobile" },
+
+      { "name": "Google News",  "gnews": "PC gaming Steam news",              "category": "pc" },
+      { "name": "Google News",  "gnews": "PlayStation OR PS5 games news",     "category": "playstation" },
+      { "name": "Google News",  "gnews": "Xbox OR \"Game Pass\" news",         "category": "xbox" },
+      { "name": "Google News",  "gnews": "Nintendo Switch games news",        "category": "nintendo" },
+      { "name": "Google News",  "gnews": "mobile games iOS Android news",     "category": "mobile" },
+      { "name": "Google News",  "gnews": "esports tournament news",           "category": "esports" }
+    ],
+    "ar": [
+      { "name": "Saudi Gamer",   "url": "https://saudigamer.com/feed/" },
+      { "name": "IGN الشرق الأوسط", "url": "https://me.ign.com/ar/feed.xml" },
+
+      { "name": "Google News", "gnews": "أخبار ألعاب الفيديو" },
+      { "name": "Google News", "gnews": "بلايستيشن PS5",                "category": "playstation" },
+      { "name": "Google News", "gnews": "إكس بوكس Xbox",                "category": "xbox" },
+      { "name": "Google News", "gnews": "نينتندو سويتش",                "category": "nintendo" },
+      { "name": "Google News", "gnews": "ألعاب الكمبيوتر ستيم",          "category": "pc" },
+      { "name": "Google News", "gnews": "ألعاب الموبايل",                "category": "mobile" },
+      { "name": "Google News", "gnews": "الرياضات الإلكترونية بطولة",    "category": "esports" }
+    ]
+  }
+}
