@@ -215,10 +215,10 @@ DENY_HARD = re.compile(
     r"|ألعاب القوى|الألعاب الأولمبية|الألعاب الآسيوية|الألعاب الخليجية|olympic games|مراهنات|كازينو|قمار|يانصيب|رهان|بيع عملات|شراء عملات|sell (game )?(gold|currency)|buy (game )?(gold|currency)", re.I)
 DENY_SOFT = re.compile(
     r"\b(football|soccer|nba|nfl|nhl|mlb|ufc|premier league|champions league|la liga|serie a|world cup qualifier|olympics?|olympic games|"
-    r"election|politic\w*|trump|biden|senate|parliament|war|gaza|ukraine|stocks?|shares|stock market|wall street|nasdaq|investors?|"
+    r"election|politic\w*|trump|biden|senate|parliament|gaza|ukraine|stocks?|shares|stock market|wall street|nasdaq|investors?|"
     r"price target|dividend|movie|film|tv series|season finale|box office|celebrity|recipe|weather|earthquake|crypto|bitcoin)\b"
     r"|كرة القدم|كرة|مباراة|مباريات|الدوري|كأس العالم لكرة|ملعب|الأولمبية|ألعاب القوى|الألعاب الأولمبية|الألعاب الآسيوية|"
-    r"سياس|انتخاب|ترامب|بايدن|غزة|حرب|أسهم|سهم|بورصة|مستثمر|فيلم|مسلسل|دراما|أغنية|فنان|شات جي بي تي|جوجل كروم|تبويب|دراسة|المدارس|طقس|زلزال|عملات رقمية|بيتكوين", re.I)
+    r"سياس|انتخاب|ترامب|بايدن|غزة|أسهم|سهم|بورصة|مستثمر|فيلم|مسلسل|دراما|أغنية|فنان|شات جي بي تي|جوجل كروم|تبويب|دراسة|المدارس|طقس|زلزال|عملات رقمية|بيتكوين", re.I)
 TRUSTED_SRC = re.compile(
     r"\b(ign|gamespot|eurogamer|polygon|kotaku|vgc|videogameschronicle|gamesradar|game informer|pc gamer|rock paper shotgun|"
     r"push square|pure xbox|pure nintendo|xbox wire|nintendo life|pocket gamer|toucharcade|pcgamesn|gamesindustry\.biz|destructoid|"
@@ -235,8 +235,8 @@ def on_topic(title, summary, source, spec):
     topical = bool(CORE.search(text) or COMPANY.search(text) or HARDWARE.search(text))
     core = bool(CORE.search(text) or COMPANY.search(text))
     soft = bool(DENY_SOFT.search(text))
-    if soft and not core:
-        return False                      # e.g. "Nvidia stock jumps", football "game", election news
+    if soft and (not core or not trusted):
+        return False                      # e.g. "Nvidia stock jumps", football "game", school/election news that merely mentions games
     if topical:
         return True
     return trusted and not soft           # trusted gaming outlets: game titles our lists do not know
@@ -374,6 +374,8 @@ def selftest():
         ("New Hollywood movie review", "", "Polygon", {"trusted": True}, False),
         ("Hollow Knight Silksong update 1.2 patch notes", "", "Kotaku", {"trusted": True}, True),
         ("Buy cheap game gold fast delivery", "", "MMOEXP", {}, False),
+        ("أيام الدراسة أربعة أيام: يخشى الآباء أن تؤثر على ألعاب الأطفال", "", "Vietnam.vn", {}, False),
+        ("Total War: Warhammer 4 DLC announced", "", "Some Site", {}, True),
         ("كيف تمنع شركات الذكاء الاصطناعي من استخدام بياناتك", "", "عرب هاردوير", {}, False),
         ("إضافة ChatGPT لجوجل كروم تقرأ تبويباتك", "", "عرب هاردوير", {}, False),
         ("أيام الدراسة أربعة أيام في الأسبوع", "ألعاب وأنشطة", "Vietnam.vn", {}, False),
