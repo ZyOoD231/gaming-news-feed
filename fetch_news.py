@@ -218,24 +218,22 @@ DENY_SOFT = re.compile(
     r"election|politic\w*|trump|biden|senate|parliament|war|gaza|ukraine|stocks?|shares|stock market|wall street|nasdaq|investors?|"
     r"price target|dividend|movie|film|tv series|season finale|box office|celebrity|recipe|weather|earthquake|crypto|bitcoin)\b"
     r"|كرة القدم|كرة|مباراة|مباريات|الدوري|كأس العالم لكرة|ملعب|الأولمبية|ألعاب القوى|الألعاب الأولمبية|الألعاب الآسيوية|"
-    r"سياس|انتخاب|ترامب|بايدن|غزة|حرب|أسهم|سهم|بورصة|مستثمر|فيلم|مسلسل|دراما|أغنية|فنان|طقس|زلزال|عملات رقمية|بيتكوين", re.I)
+    r"سياس|انتخاب|ترامب|بايدن|غزة|حرب|أسهم|سهم|بورصة|مستثمر|فيلم|مسلسل|دراما|أغنية|فنان|شات جي بي تي|جوجل كروم|تبويب|دراسة|المدارس|طقس|زلزال|عملات رقمية|بيتكوين", re.I)
 TRUSTED_SRC = re.compile(
     r"\b(ign|gamespot|eurogamer|polygon|kotaku|vgc|videogameschronicle|gamesradar|game informer|pc gamer|rock paper shotgun|"
-    r"push square|pure xbox|pure nintendo|xbox wire|nintendo life|pocket gamer|toucharcade|tom'?s hardware|videocardz|techpowerup|"
-    r"wccftech|notebookcheck|overclock3d|guru3d|kitguru|pcgamesn|gamesindustry\.biz|destructoid|gematsu|insider gaming|gamerant|"
-    r"dexerto|vg247|gamespress|windows central|the gamer|nintendo|playstation|xbox|steam|epic games|nvidia|amd)\b"
-    r"|سعودي جيمر|saudi gamer|تروجيمنج|true ?gaming|vga4a|في جي ايه|games\.gg|arabgamerz|arabhardware|عرب هاردوير|IGN الشرق|"
-    r"عالم التقنية", re.I)
+    r"push square|pure xbox|pure nintendo|xbox wire|nintendo life|pocket gamer|toucharcade|pcgamesn|gamesindustry\.biz|destructoid|"
+    r"gematsu|insider gaming|gamerant|dexerto|vg247|the gamer|playstation blog|nintendo|xbox)\b"
+    r"|سعودي جيمر|saudi gamer|تروجيمنج|true ?gaming|IGN الشرق", re.I)
 
 
 def on_topic(title, summary, source, spec):
     """True only for games / games-company / PC-hardware-company news."""
-    text = f"{title} {summary}"
-    if DENY_HARD.search(text):
+    trusted = bool(spec.get("trusted") or TRUSTED_SRC.search(source or ""))
+    text = f"{title} {summary}" if trusted else title      # untrusted sources must say it in the headline itself
+    if DENY_HARD.search(f"{title} {summary}"):
         return False
     topical = bool(CORE.search(text) or COMPANY.search(text) or HARDWARE.search(text))
     core = bool(CORE.search(text) or COMPANY.search(text))
-    trusted = bool(spec.get("trusted") or TRUSTED_SRC.search(source or ""))
     soft = bool(DENY_SOFT.search(text))
     if soft and not core:
         return False                      # e.g. "Nvidia stock jumps", football "game", election news
@@ -376,6 +374,11 @@ def selftest():
         ("New Hollywood movie review", "", "Polygon", {"trusted": True}, False),
         ("Hollow Knight Silksong update 1.2 patch notes", "", "Kotaku", {"trusted": True}, True),
         ("Buy cheap game gold fast delivery", "", "MMOEXP", {}, False),
+        ("كيف تمنع شركات الذكاء الاصطناعي من استخدام بياناتك", "", "عرب هاردوير", {}, False),
+        ("إضافة ChatGPT لجوجل كروم تقرأ تبويباتك", "", "عرب هاردوير", {}, False),
+        ("أيام الدراسة أربعة أيام في الأسبوع", "ألعاب وأنشطة", "Vietnam.vn", {}, False),
+        ("NVIDIA تنفي إيقاف إنتاج RTX 5090", "", "عرب هاردوير", {}, True),
+        ("مطوّر Silent Hill يعتزم مواصلة إصدار الألعاب", "", "IGN الشرق الأوسط", {"trusted": True}, True),
     ]
     bad = 0
     for t, sm, src, spec, want in cases:
