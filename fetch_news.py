@@ -26,6 +26,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import zlib
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from xml.etree import ElementTree as ET
@@ -248,14 +249,20 @@ def load_feed(spec, lang):
     t0 = time.time()
     url = gnews_url(spec["gnews"], lang) if spec.get("gnews") else spec["url"]
     res = {"name": spec["name"], "url": url, "ok": False, "items": [], "error": "", "ms": 0}
-    try:
-        items = parse_feed(http_get(url))
-        res["items"] = items
-        res["ok"] = bool(items)
-        if not items:
-            res["error"] = "no items"
-    except Exception as e:                           # one bad feed must never stop the run
-        res["error"] = f"{type(e).__name__}: {str(e)[:120]}"
+    for attempt in range(3):                         # Google News sometimes answers 503 under load: wait and retry
+        try:
+            items = parse_feed(http_get(url))
+            res["items"] = items
+            res["ok"] = bool(items)
+            res["error"] = "" if items else "no items"
+            break
+        except Exception as e:                       # one bad feed must never stop the run
+            res["error"] = f"{type(e).__name__}: {str(e)[:120]}"
+            code = getattr(e, "code", 0)
+            if attempt < 2 and (code in (429, 500, 502, 503, 504) or isinstance(e, (TimeoutError, OSError)) and not code):
+                time.sleep(3 + attempt * 4 + (hash(url) % 3))
+                continue
+            break
     res["ms"] = int((time.time() - t0) * 1000)
     res["spec"] = spec
     return res
@@ -273,7 +280,7 @@ def page_image(url):
         with urllib.request.urlopen(req, timeout=8) as r:
             data = r.read(150_000)
             if r.headers.get("Content-Encoding") == "gzip" or data[:2] == b"\x1f\x8b":
-                data = gzip.decompress(data) if len(data) < 150_000 else b""
+                data = zlib.decompressobj(16 + zlib.MAX_WBITS).decompress(data)   # tolerates a truncated stream
         head = data.decode("utf-8", "ignore")
         for m in OG_RE.finditer(head):
             c = CT_RE.search(m.group(0))
