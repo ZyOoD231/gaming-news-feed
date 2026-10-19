@@ -187,6 +187,62 @@ def classify(text, hint):
     return primary, tags[:3]
 
 
+# ------------------------------------------------------------ topic filter
+# Strict scope: video games, games companies, and computer-hardware companies ONLY.
+CORE = re.compile(
+    r"\b(video ?games?|gaming|gamers?|gameplay|esports?|dlc|game pass|playstation|ps[345]|psvr2?|xbox|nintendo|"
+    r"switch 2|steam deck|steam|epic games|dualsense|joy-con|early access|patch notes)\b"
+    r"|ألعاب الفيديو|الألعاب|ألعاب|لعبة|قيمنق|جيمنج|جيمر|قيمر|بلايستيشن|بلاي ستيشن|إكس ?بوكس|اكس ?بوكس|إكسبوكس|نينتندو|سويتش|ستيم|"
+    r"الرياضات الإلكترونية|إي سبورت|اي سبورت", re.I)
+COMPANY = re.compile(
+    r"\b(valve|ubisoft|electronic arts|ea sports|ea games|activision|blizzard|bethesda|capcom|square enix|bandai namco|sega|konami|"
+    r"rockstar|take-two|cd projekt|fromsoftware|riot games|hoyoverse|mihoyo|krafton|nexon|netease|tencent|supercell|roblox|minecraft|"
+    r"mojang|bungie|embracer|devolver|2k games|remedy|paradox|gearbox|insomniac|naughty dog|santa monica|id software|playground games|"
+    r"gta|call of duty|fortnite|valorant|league of legends|dota|counter-strike|cs2|apex legends|overwatch|diablo|zelda|mario|"
+    r"pok[eé]mon|elden ring|witcher|cyberpunk|battlefield|ea fc|madden|genshin|honkai|pubg|free fire|clash of clans|clash royale|gacha)\b"
+    r"|روكستار|يوبيسوفت|كابكوم|سيجا|كونامي|رايوت|بوكيمون|ماينكرافت|فورتنايت|ببجي|بابجي|روبلوكس", re.I)
+HARDWARE = re.compile(
+    r"\b(nvidia|geforce|rtx|amd|radeon|ryzen|intel|arc gpu|qualcomm|snapdragon x|graphics cards?|gpus?|cpus?|processors?|"
+    r"motherboards?|ssds?|nvme|ddr[45]|pcie|ram kit|gaming (pc|pcs|laptops?|monitors?|mouse|mice|keyboards?|headsets?|chairs?|handheld)|"
+    r"handheld pc|rog ally|legion go|steam deck|dell|lenovo|acer|asus|gigabyte|msi|razer|corsair|logitech|alienware|nzxt|"
+    r"steelseries|hyperx|benq|viewsonic|samsung odyssey|lg ultragear|oled monitor|micron|western digital|kingston|crucial|"
+    r"g\.skill|noctua|cooler master|thermaltake|lian li|framework laptop|ray tracing|dlss|fsr)\b"
+    r"|إنفيديا|انفيديا|ايه ام دي|إيه إم دي|إنتل|انتل|كرت شاشة|كروت الشاشة|كرت الشاشة|بطاقة رسوميات|بطاقات رسومية|بطاقة رسومية|"
+    r"معالج|معالجات|لابتوب|لابتوبات|كمبيوتر|حاسوب|ايسوس|أسوس|ريزر|كورسير|لينوفو|ديل", re.I)
+DENY_HARD = re.compile(
+    r"\b(betting|bookmakers?|casino|casinos|slots?|lottery|jackpot|poker|forex|gambling|sportsbook|odds)\b"
+    r"|ألعاب القوى|الألعاب الأولمبية|الألعاب الآسيوية|الألعاب الخليجية|olympic games|مراهنات|كازينو|قمار|يانصيب|رهان|بيع عملات|شراء عملات|sell (game )?(gold|currency)|buy (game )?(gold|currency)", re.I)
+DENY_SOFT = re.compile(
+    r"\b(football|soccer|nba|nfl|nhl|mlb|ufc|premier league|champions league|la liga|serie a|world cup qualifier|olympics?|olympic games|"
+    r"election|politic\w*|trump|biden|senate|parliament|war|gaza|ukraine|stocks?|shares|stock market|wall street|nasdaq|investors?|"
+    r"price target|dividend|movie|film|tv series|season finale|box office|celebrity|recipe|weather|earthquake|crypto|bitcoin)\b"
+    r"|كرة القدم|كرة|مباراة|مباريات|الدوري|كأس العالم لكرة|ملعب|الأولمبية|ألعاب القوى|الألعاب الأولمبية|الألعاب الآسيوية|"
+    r"سياس|انتخاب|ترامب|بايدن|غزة|حرب|أسهم|سهم|بورصة|مستثمر|فيلم|مسلسل|دراما|أغنية|فنان|طقس|زلزال|عملات رقمية|بيتكوين", re.I)
+TRUSTED_SRC = re.compile(
+    r"\b(ign|gamespot|eurogamer|polygon|kotaku|vgc|videogameschronicle|gamesradar|game informer|pc gamer|rock paper shotgun|"
+    r"push square|pure xbox|pure nintendo|xbox wire|nintendo life|pocket gamer|toucharcade|tom'?s hardware|videocardz|techpowerup|"
+    r"wccftech|notebookcheck|overclock3d|guru3d|kitguru|pcgamesn|gamesindustry\.biz|destructoid|gematsu|insider gaming|gamerant|"
+    r"dexerto|vg247|gamespress|windows central|the gamer|nintendo|playstation|xbox|steam|epic games|nvidia|amd)\b"
+    r"|سعودي جيمر|saudi gamer|تروجيمنج|true ?gaming|vga4a|في جي ايه|games\.gg|arabgamerz|arabhardware|عرب هاردوير|IGN الشرق|"
+    r"عالم التقنية", re.I)
+
+
+def on_topic(title, summary, source, spec):
+    """True only for games / games-company / PC-hardware-company news."""
+    text = f"{title} {summary}"
+    if DENY_HARD.search(text):
+        return False
+    topical = bool(CORE.search(text) or COMPANY.search(text) or HARDWARE.search(text))
+    core = bool(CORE.search(text) or COMPANY.search(text))
+    trusted = bool(spec.get("trusted") or TRUSTED_SRC.search(source or ""))
+    soft = bool(DENY_SOFT.search(text))
+    if soft and not core:
+        return False                      # e.g. "Nvidia stock jumps", football "game", election news
+    if topical:
+        return True
+    return trusted and not soft           # trusted gaming outlets: game titles our lists do not know
+
+
 # --------------------------------------------------------------------- main
 def load_feed(spec, lang):
     t0 = time.time()
@@ -205,11 +261,48 @@ def load_feed(spec, lang):
     return res
 
 
+
+OG_RE = re.compile(r"<meta[^>]+(?:property|name)=[\"'](?:og:image|twitter:image)[\"'][^>]*>", re.I)
+CT_RE = re.compile(r"content=[\"']([^\"']+)[\"']", re.I)
+
+
+def page_image(url):
+    """Read only the first 150 KB of an article and return its og:image (the publisher's own preview image)."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "text/html,*/*", "Accept-Encoding": "gzip"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            data = r.read(150_000)
+            if r.headers.get("Content-Encoding") == "gzip" or data[:2] == b"\x1f\x8b":
+                data = gzip.decompress(data) if len(data) < 150_000 else b""
+        head = data.decode("utf-8", "ignore")
+        for m in OG_RE.finditer(head):
+            c = CT_RE.search(m.group(0))
+            if c:
+                u = https(urllib.parse.urljoin(url, html.unescape(c.group(1))))
+                if u:
+                    return u
+    except Exception:
+        return ""
+    return ""
+
+
+def enrich_images(items, limit=70):
+    todo = [i for i in items if not i["image"] and "news.google.com" not in i["url"]][:limit]
+    if not todo:
+        return 0
+    with cf.ThreadPoolExecutor(max_workers=8) as ex:
+        for it, img in zip(todo, ex.map(lambda i: page_image(i["url"]), todo)):
+            if img:
+                it["image"] = img
+    return sum(1 for i in todo if i["image"])
+
+
 def build(lang, feeds, cfg, now):
     with cf.ThreadPoolExecutor(max_workers=10) as ex:
         results = list(ex.map(lambda s: load_feed(s, lang), feeds))
     cutoff = now - timedelta(days=cfg["max_age_days"])
     seen_u, seen_t, per_src, out = set(), set(), {}, []
+    dropped = 0
     for r in results:
         spec = r["spec"]
         taken = 0
@@ -231,6 +324,9 @@ def build(lang, feeds, cfg, now):
                 continue
             if per_src.get(source, 0) >= cfg["per_source_cap"]:
                 continue
+            if not on_topic(title, it["summary"], source, spec):
+                dropped += 1
+                continue
             primary, tags = classify(f"{title} {it['summary']}", spec.get("category"))
             seen_u.add(ku); seen_t.add(kt)
             per_src[source] = per_src.get(source, 0) + 1
@@ -248,12 +344,45 @@ def build(lang, feeds, cfg, now):
             })
     out.sort(key=lambda i: i["published"], reverse=True)
     out = out[:cfg["max_items"]]
+    got = enrich_images(out)
+    print(f"  [{lang}] off-topic items dropped: {dropped}; images added from article pages: {got}")
     health = [{"name": r["name"], "url": r["url"], "ok": r["ok"], "count": len(r["items"]),
                "ms": r["ms"], "error": r["error"]} for r in results]
     return out, health
 
 
+def selftest():
+    cases = [
+        ("Elden Ring DLC sells 5 million copies", "", "IGN", {}, True),
+        ("Nvidia unveils RTX 5090 Super with 32GB memory", "", "Tom's Hardware", {}, True),
+        ("AMD Ryzen 9 9950X3D2 benchmark leaks", "", "VideoCardz", {}, True),
+        ("Ubisoft delays next Assassin's Creed", "", "Reuters", {}, True),
+        ("PlayStation Plus November 2026 lineup revealed", "", "Push Square", {}, True),
+        ("إنفيديا تكشف عن كرت شاشة جديد للاعبين", "", "عالم التقنية", {}, True),
+        ("مايكروسوفت تعلن موعد إكس بوكس جيم باس الجديد", "", "Saudi Gamer", {}, True),
+        ("Nvidia stock jumps after earnings", "", "CNBC", {}, False),
+        ("Real Madrid beat Barcelona in a thrilling football game", "", "DAZN", {}, False),
+        ("Best online casino slots bonus", "", "Spam", {}, False),
+        ("Trump signs new tariff order on chips", "", "Reuters", {}, False),
+        ("مباراة الهلال والنصر في الدوري السعودي", "", "صدى البلد", {}, False),
+        ("ألعاب القوى: نتائج بطولة آسيا", "", "اليوم السابع", {}, False),
+        ("New Hollywood movie review", "", "Polygon", {"trusted": True}, False),
+        ("Hollow Knight Silksong update 1.2 patch notes", "", "Kotaku", {"trusted": True}, True),
+        ("Buy cheap game gold fast delivery", "", "MMOEXP", {}, False),
+    ]
+    bad = 0
+    for t, sm, src, spec, want in cases:
+        got = on_topic(t, sm, src, spec)
+        if got != want:
+            bad += 1
+            print("FAIL", want, got, t)
+    print("selftest:", "ok" if not bad else f"{bad} failed", f"({len(cases)} cases)")
+    sys.exit(1 if bad else 0)
+
+
 def main():
+    if "--selftest" in sys.argv:
+        selftest()
     ap = argparse.ArgumentParser()
     ap.add_argument("--feeds", default=str(pathlib.Path(__file__).with_name("feeds.json")))
     ap.add_argument("--out", default="site")
