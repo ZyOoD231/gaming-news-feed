@@ -321,14 +321,60 @@ def page_image(url):
     return ""
 
 
+def resolve_gnews(url):
+    """Google News links are redirects. Ask Google (the same two requests its own page makes) which publisher page they point to,
+    so we can read that page's og:image. Any failure simply returns '' and the story keeps its generated cover."""
+    try:
+        m = re.search(r"/articles/([^/?]+)", url)
+        if not m:
+            return ""
+        gid = m.group(1)
+        req = urllib.request.Request(f"https://news.google.com/rss/articles/{gid}", headers={"User-Agent": UA, "Accept-Language": "en"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            page = r.read(400_000).decode("utf-8", "ignore")
+        sg = re.search(r'data-n-a-sg="([^"]+)"', page)
+        ts = re.search(r'data-n-a-ts="([^"]+)"', page)
+        if not (sg and ts):
+            return ""
+        inner = json.dumps(["garturlreq", [["X", "X", ["X", "X"], None, None, 1, 1, "US:en", None, 1, None, None, None, None, None, 0, 1],
+                                           "X", "X", 1, [1, 1, 1], 1, 1, None, 0, 0, None, 0], gid, int(ts.group(1)), sg.group(1)],
+                           separators=(",", ":"))
+        body = urllib.parse.urlencode({"f.req": json.dumps([[["Fbv4je", inner, None, "generic"]]], separators=(",", ":"))}).encode()
+        req = urllib.request.Request("https://news.google.com/_/DotsSplashUi/data/batchexecute", data=body, method="POST",
+                                     headers={"User-Agent": UA, "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            raw = r.read(200_000).decode("utf-8", "ignore")
+        for line in raw.split("\n"):
+            line = line.strip()
+            if line.startswith("[["):
+                outer = json.loads(line)
+                res = json.loads(outer[0][2])
+                if res and res[0] == "garturlres" and str(res[1]).startswith("http"):
+                    return res[1]
+    except Exception:
+        return ""
+    return ""
+
+
+def gnews_image(url):
+    time.sleep(0.4)                                   # be polite: Google News is only asked a few dozen times per run
+    real = resolve_gnews(url)
+    return page_image(real) if real else ""
+
+
 def enrich_images(items, limit=70):
     todo = [i for i in items if (not i["image"] or looks_small(i["image"])) and "news.google.com" not in i["url"]][:limit]   # missing OR thumbnail-sized
-    if not todo:
-        return 0
     with cf.ThreadPoolExecutor(max_workers=8) as ex:
         for it, img in zip(todo, ex.map(lambda i: page_image(i["url"]), todo)):
             if img:
                 it["image"] = img                    # the publisher's own og:image is the full-size picture
+    gn = [i for i in items if not i["image"] and "news.google.com" in i["url"]][:60]
+    if gn:
+        with cf.ThreadPoolExecutor(max_workers=3) as ex:
+            for it, img in zip(gn, ex.map(lambda i: gnews_image(i["url"]), gn)):
+                if img:
+                    it["image"] = img
+        print(f"    Google News stories resolved to a picture: {sum(1 for i in gn if i['image'])}/{len(gn)}")
     return sum(1 for i in todo if i["image"] and not looks_small(i["image"]))
 
 
