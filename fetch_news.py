@@ -131,6 +131,30 @@ def gnews_url(query, lang):
 IMG_RE = re.compile(r"<img[^>]+src=[\"']([^\"']+)[\"']", re.I)
 
 
+SMALL_RE = re.compile(r"(-|_)(\d{2,3})x(\d{2,3})\.(jpe?g|png|webp)|[?&](w|width)=(\d{2,3})(&|$)|/(thumb|thumbs|thumbnail|small|tiny|icon)s?/|_(s|t|small|thumb)\.(jpe?g|png|webp)", re.I)
+
+
+def looks_small(u):
+    return bool(u) and bool(SMALL_RE.search(u))
+
+
+def upgrade_image(u):
+    """Turn well-known thumbnail URL patterns into the full-size picture the publisher serves."""
+    if not u:
+        return u
+    u = re.sub(r"-\d{2,4}x\d{2,4}(\.(?:jpe?g|png|webp))", r"\1", u, flags=re.I)         # WordPress -300x200.jpg
+    u = re.sub(r"([?&])(w|width)=\d+", r"\1\2=1280", u, flags=re.I)
+    u = re.sub(r"([?&])(h|height)=\d+&?", r"\1", u, flags=re.I).rstrip("?&")
+    return u
+
+
+def media_width(c):
+    try:
+        return int(c.get("width") or 0)
+    except ValueError:
+        return 0
+
+
 def parse_feed(data):
     root = ET.fromstring(data)
     out = []
@@ -159,21 +183,27 @@ def parse_feed(data):
                 html_blobs.append(txt)
             elif t == "source":
                 it["source"] = clean_text(txt)
-            if t in ("thumbnail", "content", "enclosure") and not it["image"]:
+            if t in ("thumbnail", "content", "enclosure"):
                 u = c.get("url") or c.get("href")
                 typ = (c.get("type") or c.get("medium") or "").lower()
                 if u and (t == "thumbnail" or "image" in typ or re.search(r"\.(jpe?g|png|webp)(\?|$)", u, re.I)):
-                    it["image"] = u
+                    w = media_width(c)
+                    if not it["image"] or w > it.get("_w", 0):      # keep the widest variant the feed offers
+                        it["image"], it["_w"] = u, w
             if t == "group":                       # <media:group>
                 for g in c:
-                    if local(g.tag) in ("thumbnail", "content") and g.get("url") and not it["image"]:
-                        it["image"] = g.get("url")
+                    if local(g.tag) in ("thumbnail", "content") and g.get("url"):
+                        w = media_width(g)
+                        if not it["image"] or w > it.get("_w", 0):
+                            it["image"], it["_w"] = g.get("url"), w
         if not it["image"]:
             for blob in html_blobs:
                 m = IMG_RE.search(blob or "")
                 if m:
                     it["image"] = m.group(1)
                     break
+        it["image"] = upgrade_image(it["image"])
+        it.pop("_w", None)
         it["summary"] = "" if it["summary"].lstrip().startswith("<a ") else clean_text(it["summary"], 200)
         if it["title"] and it["link"]:
             out.append(it)
@@ -292,14 +322,14 @@ def page_image(url):
 
 
 def enrich_images(items, limit=70):
-    todo = [i for i in items if not i["image"] and "news.google.com" not in i["url"]][:limit]
+    todo = [i for i in items if (not i["image"] or looks_small(i["image"])) and "news.google.com" not in i["url"]][:limit]   # missing OR thumbnail-sized
     if not todo:
         return 0
     with cf.ThreadPoolExecutor(max_workers=8) as ex:
         for it, img in zip(todo, ex.map(lambda i: page_image(i["url"]), todo)):
             if img:
-                it["image"] = img
-    return sum(1 for i in todo if i["image"])
+                it["image"] = img                    # the publisher's own og:image is the full-size picture
+    return sum(1 for i in todo if i["image"] and not looks_small(i["image"]))
 
 
 def build(lang, feeds, cfg, now):
