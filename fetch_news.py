@@ -351,6 +351,8 @@ def build(lang, feeds, cfg, now):
             if "news.google.com" in it["link"] and " - " in title:   # "Headline - Publisher"
                 head, _, pub = title.rpartition(" - ")
                 title, source = head.strip(), (it["source"] or pub.strip())
+            if re.match(r"https?://", source or ""):          # some feeds put a URL in <source>: use the outlet name instead
+                source = spec["name"]
             link = it["link"].strip()
             if not link.startswith(("http://", "https://")):
                 continue
@@ -378,8 +380,12 @@ def build(lang, feeds, cfg, now):
                 "summary": it["summary"],
             })
     out.sort(key=lambda i: i["published"], reverse=True)
+    out = out[:cfg["max_items"] + 60]                       # a wider pool: stories without a usable picture are dropped below
+    got = enrich_images(out, limit=120)
+    with_img = [i for i in out if i["image"] and not looks_small(i["image"])]
+    if len(with_img) >= 30:                                 # every story shows a real picture whenever we can afford it
+        out = with_img
     out = out[:cfg["max_items"]]
-    got = enrich_images(out)
     print(f"  [{lang}] off-topic items dropped: {dropped}; images added from article pages: {got}")
     health = [{"name": r["name"], "url": r["url"], "ok": r["ok"], "count": len(r["items"]),
                "ms": r["ms"], "error": r["error"]} for r in results]
